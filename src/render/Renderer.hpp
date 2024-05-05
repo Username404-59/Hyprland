@@ -64,9 +64,8 @@ class CHyprRenderer {
     void                            setOccludedForMainWorkspace(CRegion& region, PHLWORKSPACE pWorkspace); // TODO: merge occlusion methods
     bool                            canSkipBackBufferClear(CMonitor* pMonitor);
     void                            recheckSolitaryForMonitor(CMonitor* pMonitor);
-    void                            setCursorSurface(wlr_surface* surf, int hotspotX, int hotspotY, bool force = false);
+    void                            setCursorSurface(CWLSurface* surf, int hotspotX, int hotspotY, bool force = false);
     void                            setCursorFromName(const std::string& name, bool force = false);
-    void                            renderSoftwareCursors(CMonitor* pMonitor, const CRegion& damage, std::optional<Vector2D> overridePos = {});
     void                            onRenderbufferDestroy(CRenderbuffer* rb);
     CRenderbuffer*                  getCurrentRBO();
     bool                            isNvidia();
@@ -81,9 +80,8 @@ class CHyprRenderer {
     bool         m_bBlockSurfaceFeedback = false;
     bool         m_bRenderingSnapshot    = false;
     PHLWINDOWREF m_pLastScanout;
-    CMonitor*    m_pMostHzMonitor         = nullptr;
-    bool         m_bDirectScanoutBlocked  = false;
-    bool         m_bSoftwareCursorsLocked = false;
+    CMonitor*    m_pMostHzMonitor        = nullptr;
+    bool         m_bDirectScanoutBlocked = false;
 
     DAMAGETRACKINGMODES
     damageTrackingModeFromStr(const std::string&);
@@ -100,10 +98,10 @@ class CHyprRenderer {
     CTimer           m_tRenderTimer;
 
     struct {
-        int                         hotspotX;
-        int                         hotspotY;
-        std::optional<wlr_surface*> surf = nullptr;
-        std::string                 name;
+        int                        hotspotX;
+        int                        hotspotY;
+        std::optional<CWLSurface*> surf = nullptr;
+        std::string                name;
     } m_sLastCursorData;
 
   private:

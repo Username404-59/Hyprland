@@ -137,7 +137,9 @@ class CHyprOpenGLImpl {
     void                  renderRectWithBlur(CBox*, const CColor&, int round = 0, float blurA = 1.f, bool xray = false);
     void                  renderRectWithDamage(CBox*, const CColor&, CRegion* damage, int round = 0);
     void                  renderTexture(wlr_texture*, CBox*, float a, int round = 0, bool allowCustomUV = false);
+    void                  renderTextureWithDamage(wlr_texture*, CBox*, CRegion* damage, float a, int round = 0, bool allowCustomUV = false);
     void                  renderTexture(const CTexture&, CBox*, float a, int round = 0, bool discardActive = false, bool allowCustomUV = false);
+    void                  renderTextureWithDamage(const CTexture&, CBox*, CRegion* damage, float a, int round = 0, bool discardActive = false, bool allowCustomUV = false);
     void                  renderTextureWithBlur(const CTexture&, CBox*, float a, wlr_surface* pSurface, int round = 0, bool blockBlurOptimization = false, float blurA = 1.f);
     void                  renderRoundedShadow(CBox*, int round, int range, const CColor& color, float a = 1.0);
     void                  renderBorder(CBox*, const CGradientValueData&, int round, int borderSize, float a = 1.0, int outerRound = -1 /* use round */);

@@ -814,10 +814,24 @@ void CHyprOpenGLImpl::renderTexture(wlr_texture* tex, CBox* pBox, float alpha, i
     renderTexture(CTexture(tex), pBox, alpha, round, false, allowCustomUV);
 }
 
+void CHyprOpenGLImpl::renderTextureWithDamage(wlr_texture* tex, CBox* pBox, CRegion* damage, float alpha, int round, bool allowCustomUV) {
+    RASSERT(m_RenderData.pMonitor, "Tried to render texture without begin()!");
+
+    renderTextureWithDamage(CTexture(tex), pBox, damage, alpha, round, false, allowCustomUV);
+}
+
 void CHyprOpenGLImpl::renderTexture(const CTexture& tex, CBox* pBox, float alpha, int round, bool discardActive, bool allowCustomUV) {
     RASSERT(m_RenderData.pMonitor, "Tried to render texture without begin()!");
 
     renderTextureInternalWithDamage(tex, pBox, alpha, &m_RenderData.damage, round, discardActive, false, allowCustomUV, true);
+
+    scissor((CBox*)nullptr);
+}
+
+void CHyprOpenGLImpl::renderTextureWithDamage(const CTexture& tex, CBox* pBox, CRegion* damage, float alpha, int round, bool discardActive, bool allowCustomUV) {
+    RASSERT(m_RenderData.pMonitor, "Tried to render texture without begin()!");
+
+    renderTextureInternalWithDamage(tex, pBox, alpha, damage, round, discardActive, false, allowCustomUV, true);
 
     scissor((CBox*)nullptr);
 }
