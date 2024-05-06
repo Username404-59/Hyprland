@@ -58,9 +58,9 @@ CInputManager::~CInputManager() {
     m_vKeyboards.clear();
     m_vPointers.clear();
     m_vTouches.clear();
-    m_lTablets.clear();
-    m_lTabletTools.clear();
-    m_lTabletPads.clear();
+    m_vTablets.clear();
+    m_vTabletTools.clear();
+    m_vTabletPads.clear();
     m_vIdleInhibitors.clear();
     m_lSwitches.clear();
 }
@@ -1197,6 +1197,24 @@ void CInputManager::destroyTouchDevice(SP<ITouch> touch) {
     std::erase_if(m_vTouches, [touch](const auto& other) { return other == touch; });
 }
 
+void CInputManager::destroyTablet(SP<CTablet> tablet) {
+    Debug::log(LOG, "Tablet device at {:x} removed", (uintptr_t)tablet.get());
+
+    std::erase_if(m_vTablets, [tablet](const auto& other) { return other == tablet; });
+}
+
+void CInputManager::destroyTabletTool(SP<CTabletTool> tool) {
+    Debug::log(LOG, "Tablet tool at {:x} removed", (uintptr_t)tool.get());
+
+    std::erase_if(m_vTabletTools, [tool](const auto& other) { return other == tool; });
+}
+
+void CInputManager::destroyTabletPad(SP<CTabletPad> pad) {
+    Debug::log(LOG, "Tablet pad at {:x} removed", (uintptr_t)pad.get());
+
+    std::erase_if(m_vTabletPads, [pad](const auto& other) { return other == pad; });
+}
+
 void CInputManager::onKeyboardKey(std::any event, SP<IKeyboard> pKeyboard) {
     if (!pKeyboard->enabled)
         return;
@@ -1344,7 +1362,7 @@ void CInputManager::updateCapabilities() {
         caps |= WL_SEAT_CAPABILITY_POINTER;
     if (!m_vTouches.empty())
         caps |= WL_SEAT_CAPABILITY_TOUCH;
-    if (!m_lTabletTools.empty())
+    if (!m_vTabletTools.empty())
         caps |= WL_SEAT_CAPABILITY_POINTER;
 
     wlr_seat_set_capabilities(g_pCompositor->m_sSeat.seat, caps);
@@ -1450,43 +1468,39 @@ void CInputManager::setTouchDeviceConfigs(SP<ITouch> dev) {
 }
 
 void CInputManager::setTabletConfigs() {
-    for (auto& t : m_lTablets) {
-        if (wlr_input_device_is_libinput(t.wlrDevice)) {
-            const auto LIBINPUTDEV = (libinput_device*)wlr_libinput_get_device_handle(t.wlrDevice);
+    for (auto& t : m_vTablets) {
+        if (wlr_input_device_is_libinput(&t->wlr()->base)) {
+            const auto NAME        = t->hlName;
+            const auto LIBINPUTDEV = (libinput_device*)wlr_libinput_get_device_handle(&t->wlr()->base);
 
-            const auto RELINPUT = g_pConfigManager->getDeviceInt(t.name, "relative_input", "input:tablet:relative_input");
-            t.relativeInput     = RELINPUT;
+            const auto RELINPUT = g_pConfigManager->getDeviceInt(NAME, "relative_input", "input:tablet:relative_input");
+            t->relativeInput    = RELINPUT;
 
-            const int ROTATION = std::clamp(g_pConfigManager->getDeviceInt(t.name, "transform", "input:tablet:transform"), 0, 7);
-            Debug::log(LOG, "Setting calibration matrix for device {}", t.name);
+            const int ROTATION = std::clamp(g_pConfigManager->getDeviceInt(NAME, "transform", "input:tablet:transform"), 0, 7);
+            Debug::log(LOG, "Setting calibration matrix for device {}", NAME);
             libinput_device_config_calibration_set_matrix(LIBINPUTDEV, MATRICES[ROTATION]);
 
-            if (g_pConfigManager->getDeviceInt(t.name, "left_handed", "input:tablet:left_handed") == 0)
+            if (g_pConfigManager->getDeviceInt(NAME, "left_handed", "input:tablet:left_handed") == 0)
                 libinput_device_config_left_handed_set(LIBINPUTDEV, 0);
             else
                 libinput_device_config_left_handed_set(LIBINPUTDEV, 1);
 
-            const auto OUTPUT   = g_pConfigManager->getDeviceString(t.name, "output", "input:tablet:output");
-            const auto PMONITOR = g_pCompositor->getMonitorFromString(OUTPUT);
-            if (!OUTPUT.empty() && OUTPUT != STRVAL_EMPTY && PMONITOR) {
-                Debug::log(LOG, "Binding tablet {} to output {}", t.name, PMONITOR->szName);
-                // wlr_cursor_map_input_to_output(g_pCompositor->m_sWLRCursor, t.wlrDevice, PMONITOR->output);
-                // wlr_cursor_map_input_to_region(g_pCompositor->m_sWLRCursor, t.wlrDevice, nullptr);
-                t.boundOutput = OUTPUT;
-            } else if (!PMONITOR)
-                Debug::log(ERR, "Failed to bind tablet {} to output '{}': monitor not found", t.name, OUTPUT);
+            const auto OUTPUT = g_pConfigManager->getDeviceString(NAME, "output", "input:tablet:output");
+            if (OUTPUT != STRVAL_EMPTY) {
+                Debug::log(LOG, "Binding tablet {} to output {}", NAME, OUTPUT);
+                t->boundOutput = OUTPUT;
+            } else
+                t->boundOutput = "";
 
-            const auto REGION_POS  = g_pConfigManager->getDeviceVec(t.name, "region_position", "input:tablet:region_position");
-            const auto REGION_SIZE = g_pConfigManager->getDeviceVec(t.name, "region_size", "input:tablet:region_size");
-            //auto       regionBox   = CBox{REGION_POS.x, REGION_POS.y, REGION_SIZE.x, REGION_SIZE.y};
-            // if (!regionBox.empty())
-            // wlr_cursor_map_input_to_region(g_pCompositor->m_sWLRCursor, t.wlrDevice, regionBox.pWlr());
+            const auto REGION_POS  = g_pConfigManager->getDeviceVec(NAME, "region_position", "input:tablet:region_position");
+            const auto REGION_SIZE = g_pConfigManager->getDeviceVec(NAME, "region_size", "input:tablet:region_size");
+            t->boundBox            = {REGION_POS, REGION_SIZE};
 
-            const auto ACTIVE_AREA_SIZE = g_pConfigManager->getDeviceVec(t.name, "active_area_size", "input:tablet:active_area_size");
-            const auto ACTIVE_AREA_POS  = g_pConfigManager->getDeviceVec(t.name, "active_area_position", "input:tablet:active_area_position");
+            const auto ACTIVE_AREA_SIZE = g_pConfigManager->getDeviceVec(NAME, "active_area_size", "input:tablet:active_area_size");
+            const auto ACTIVE_AREA_POS  = g_pConfigManager->getDeviceVec(NAME, "active_area_position", "input:tablet:active_area_position");
             if (ACTIVE_AREA_SIZE.x != 0 || ACTIVE_AREA_SIZE.y != 0) {
-                t.activeArea = CBox{ACTIVE_AREA_POS.x / t.wlrTablet->width_mm, ACTIVE_AREA_POS.y / t.wlrTablet->height_mm,
-                                    (ACTIVE_AREA_POS.x + ACTIVE_AREA_SIZE.x) / t.wlrTablet->width_mm, (ACTIVE_AREA_POS.y + ACTIVE_AREA_SIZE.y) / t.wlrTablet->height_mm};
+                t->activeArea = CBox{ACTIVE_AREA_POS.x / t->wlr()->width_mm, ACTIVE_AREA_POS.y / t->wlr()->height_mm, (ACTIVE_AREA_POS.x + ACTIVE_AREA_SIZE.x) / t->wlr()->width_mm,
+                                     (ACTIVE_AREA_POS.y + ACTIVE_AREA_SIZE.y) / t->wlr()->height_mm};
             }
         }
     }
@@ -1575,16 +1589,16 @@ std::string CInputManager::getNameForNewDevice(std::string internalName) {
                         [&](const auto& other) { return other->hlName == proposedNewName + (dupeno == 0 ? "" : ("-" + std::to_string(dupeno))); }) != m_vTouches.end())
         dupeno++;
 
-    while (std::find_if(m_lTabletPads.begin(), m_lTabletPads.end(),
-                        [&](const STabletPad& other) { return other.name == proposedNewName + (dupeno == 0 ? "" : ("-" + std::to_string(dupeno))); }) != m_lTabletPads.end())
+    while (std::find_if(m_vTabletPads.begin(), m_vTabletPads.end(),
+                        [&](const auto& other) { return other->hlName == proposedNewName + (dupeno == 0 ? "" : ("-" + std::to_string(dupeno))); }) != m_vTabletPads.end())
         dupeno++;
 
-    while (std::find_if(m_lTablets.begin(), m_lTablets.end(),
-                        [&](const STablet& other) { return other.name == proposedNewName + (dupeno == 0 ? "" : ("-" + std::to_string(dupeno))); }) != m_lTablets.end())
+    while (std::find_if(m_vTablets.begin(), m_vTablets.end(),
+                        [&](const auto& other) { return other->hlName == proposedNewName + (dupeno == 0 ? "" : ("-" + std::to_string(dupeno))); }) != m_vTablets.end())
         dupeno++;
 
-    while (std::find_if(m_lTabletTools.begin(), m_lTabletTools.end(),
-                        [&](const STabletTool& other) { return other.name == proposedNewName + (dupeno == 0 ? "" : ("-" + std::to_string(dupeno))); }) != m_lTabletTools.end())
+    while (std::find_if(m_vTabletTools.begin(), m_vTabletTools.end(),
+                        [&](const auto& other) { return other->hlName == proposedNewName + (dupeno == 0 ? "" : ("-" + std::to_string(dupeno))); }) != m_vTabletTools.end())
         dupeno++;
 
     return proposedNewName + (dupeno == 0 ? "" : ("-" + std::to_string(dupeno)));
